@@ -15,8 +15,8 @@ from cv_bridge import CvBridge, CvBridgeError
 
 
 ROUTECAM_RTSP_URI = "rtsp://192.168.0.11:5005/routecam"
-FRAME_WIDTH = 1920
-FRAME_HEIGHT = 1080
+FRAME_WIDTH = 1280
+FRAME_HEIGHT = 720
 
 
 class Routecam(Node):
@@ -27,15 +27,18 @@ class Routecam(Node):
     def __init__(self):
         super().__init__("routecam")
         qos_profile = rclpy.qos.QoSProfile(
-            history=rclpy.qos.QoSHistoryPolicy.KEEP_ALL,
+            history=rclpy.qos.QoSHistoryPolicy.KEEP_LAST,
             reliability=rclpy.qos.QoSReliabilityPolicy.RELIABLE,
+            durability=rclpy.qos.QoSDurabilityPolicy.VOLATILE,
+            depth=1,
         )
         self.image_pub = self.create_publisher(Image, "routecam", qos_profile=qos_profile)
         self.bridge = CvBridge()
         
         # gstreamer pipeline
+        self.active = False
         Gst.init(None)
-        routecam_pipeline = f"rtspsrc location={ROUTECAM_RTSP_URI} latency=0 ! decodebin ! queue leaky=2 ! videoconvert ! video/x-raw, width={FRAME_WIDTH}, height={FRAME_HEIGHT}, format=BGR ! appsink drop=1 name=sink"
+        routecam_pipeline = f"rtspsrc location={ROUTECAM_RTSP_URI} latency=0 ! rtpjitterbuffer ! decodebin ! queue leaky=2 ! videoconvert ! video/x-raw, width={FRAME_WIDTH}, height={FRAME_HEIGHT}, format=BGR ! appsink drop=true name=sink"
         
         self.pipeline = Gst.parse_launch(routecam_pipeline)
         self.sink = self.pipeline.get_by_name("sink")
@@ -52,7 +55,11 @@ class Routecam(Node):
         buf = sample.get_buffer()
         success, map_info = buf.map(Gst.MapFlags.READ)
         if not success:
+            self.get_logger().log(f"Unable to grab frame from {ROUTECAM_RTSP_URI}", 30)
             return 0
+        if not self.active:
+            self.get_logger().log(f"Stream has started from {ROUTECAM_RTSP_URI}", 20)
+            self.active = True
         frame = np.frombuffer(map_info.data, dtype=np.uint8)
         frame = frame.reshape((FRAME_HEIGHT, FRAME_WIDTH, 3))
         frame = cv.rotate(frame, cv.ROTATE_180)
