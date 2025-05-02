@@ -1,5 +1,6 @@
 import gi
 
+import rclpy.qos
 import rclpy.utilities
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GLib
@@ -25,7 +26,11 @@ class Routecam(Node):
     
     def __init__(self):
         super().__init__("routecam")
-        self.image_pub = self.create_publisher(Image, "routecam", 1)
+        qos_profile = rclpy.qos.QoSProfile(
+            history=rclpy.qos.QoSHistoryPolicy.KEEP_ALL,
+            reliability=rclpy.qos.QoSReliabilityPolicy.RELIABLE,
+        )
+        self.image_pub = self.create_publisher(Image, "routecam", qos_profile=qos_profile)
         self.bridge = CvBridge()
         
         # gstreamer pipeline
