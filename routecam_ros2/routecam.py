@@ -1,7 +1,7 @@
 import gi
 
 import rclpy.qos
-import rclpy.utilities
+import time
 gi.require_version('Gst', '1.0')
 from gi.repository import Gst, GLib
 import cv2 as cv
@@ -13,10 +13,9 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge, CvBridgeError
 
-
-ROUTECAM_RTSP_URI = "rtsp://192.168.0.11:5005/routecam"
 FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
+STREAM_INITIAL_TIMEOUT = 10         # time to wait before determining the stream cannot be found
 
 
 class Routecam(Node):
@@ -35,10 +34,14 @@ class Routecam(Node):
         self.image_pub = self.create_publisher(Image, "routecam", qos_profile=qos_profile)
         self.bridge = CvBridge()
         
+        self.declare_parameter("hostname", "")
+        hostname = self.get_parameter("hostname")
+        self.rtsp_uri = f"rtsp://{hostname.value}:5005/routecam"
+        
         # gstreamer pipeline
         self.active = False
         Gst.init(None)
-        routecam_pipeline = f"rtspsrc location={ROUTECAM_RTSP_URI} latency=0 ! rtpjitterbuffer ! decodebin ! queue leaky=2 ! videoconvert ! video/x-raw, width={FRAME_WIDTH}, height={FRAME_HEIGHT}, format=BGR ! appsink drop=true name=sink"
+        routecam_pipeline = f"rtspsrc location={self.rtsp_uri} latency=0 ! rtpjitterbuffer ! decodebin ! queue leaky=2 ! videoconvert ! video/x-raw, width={FRAME_WIDTH}, height={FRAME_HEIGHT}, format=BGR ! appsink drop=true name=sink"
         
         self.pipeline = Gst.parse_launch(routecam_pipeline)
         self.sink = self.pipeline.get_by_name("sink")
@@ -46,19 +49,29 @@ class Routecam(Node):
         self.sink.set_property("sync", False)
         self.sink.connect("new-sample", self.on_new_sample)
         self.pipeline.set_state(Gst.State.PLAYING)
+        
         self.loop = GLib.MainLoop()
         threading.Thread(target=self.loop.run, daemon=True).start()
-        # self.loop.run()
+        
+        time.sleep(STREAM_INITIAL_TIMEOUT)
+        
+        if not self.active:
+            self.get_logger().log(f"Could not connect to {self.rtsp_uri}, stream timed out after {STREAM_INITIAL_TIMEOUT} seconds", 40)
+            self.destroy_node()
+            exit(-1)
+        
         
     def on_new_sample(self, sink):
         sample = sink.emit("pull-sample")
         buf = sample.get_buffer()
         success, map_info = buf.map(Gst.MapFlags.READ)
         if not success:
-            self.get_logger().log(f"Unable to grab frame from {ROUTECAM_RTSP_URI}", 30)
+            self.get_logger().log(f"Unable to grab frame from {self.rtsp_uri}", 40)
+            self.loop.quit()
+            self.destroy_node()
             return 0
         if not self.active:
-            self.get_logger().log(f"Stream has started from {ROUTECAM_RTSP_URI}", 20)
+            self.get_logger().log(f"Stream has started from {self.rtsp_uri}", 20)
             self.active = True
         frame = np.frombuffer(map_info.data, dtype=np.uint8)
         frame = frame.reshape((FRAME_HEIGHT, FRAME_WIDTH, 3))
