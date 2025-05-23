@@ -10,7 +10,7 @@ import threading
 
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from cv_bridge import CvBridge, CvBridgeError
 
 FRAME_WIDTH = 1280
@@ -31,7 +31,8 @@ class Routecam(Node):
             durability=rclpy.qos.QoSDurabilityPolicy.VOLATILE,
             depth=1,
         )
-        self.image_pub = self.create_publisher(Image, "routecam", qos_profile=qos_profile)
+        self.image_pub = self.create_publisher(Image, "routecam/image_raw", qos_profile=qos_profile)
+        self.info_pub = self.create_publisher(CameraInfo, "routecam/camera_info", 1)
         self.bridge = CvBridge()
         
         self.declare_parameter("hostname", "")
@@ -49,6 +50,13 @@ class Routecam(Node):
         self.sink.set_property("sync", False)
         self.sink.connect("new-sample", self.on_new_sample)
         self.pipeline.set_state(Gst.State.PLAYING)
+        
+        self.info = CameraInfo()
+        self.info.width = FRAME_WIDTH
+        self.info.height = FRAME_HEIGHT
+        self.info.binning_x = 0
+        self.info.binning_y = 0
+        self.info.header.frame_id = "route_cam_link" 
         
         self.loop = GLib.MainLoop()
         threading.Thread(target=self.loop.run, daemon=True).start()
@@ -83,9 +91,9 @@ class Routecam(Node):
         
         # convert cv frame to ros image
         self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+        self.info_pub.publish(self.info)
         buf.unmap(map_info)
         return 0
-  
   
   
         
