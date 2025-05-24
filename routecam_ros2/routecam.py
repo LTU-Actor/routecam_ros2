@@ -27,9 +27,9 @@ class Routecam(Node):
         super().__init__("routecam")
         qos_profile = rclpy.qos.QoSProfile(
             history=rclpy.qos.QoSHistoryPolicy.KEEP_LAST,
-            reliability=rclpy.qos.QoSReliabilityPolicy.RELIABLE,
+            reliability=rclpy.qos.QoSReliabilityPolicy.BEST_EFFORT,
             durability=rclpy.qos.QoSDurabilityPolicy.VOLATILE,
-            depth=1,
+            depth=5,
         )
         self.image_pub = self.create_publisher(Image, "routecam/image_raw", qos_profile=qos_profile)
         self.info_pub = self.create_publisher(CameraInfo, "routecam/camera_info", 1)
