@@ -57,6 +57,12 @@ class Routecam(Node):
         self.info.binning_x = 0
         self.info.binning_y = 0
         self.info.header.frame_id = "route_cam_link" 
+        self.info.distortion_model = "rational_polynomial"
+        self.info.d = [0.006529257187577666, -0.13277793184289408, 0.1680380154205031, -0.0775994795123907]
+        self.info.k = [594.619643383718, -2.338996198816343, 680.1318100627273, 0.0, 593.0999623886435, 371.09535258839816, 0.0, 0.0, 1.0]
+        self.info.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        self.info.p = [594.619643383718, -2.338996198816343, 680.1318100627273, 0.0, 0.0, 593.0999623886435, 371.09535258839816, 0.0, 0.0, 0.0, 1.0, 0.0]
+        
         
         self.loop = GLib.MainLoop()
         threading.Thread(target=self.loop.run, daemon=True).start()
