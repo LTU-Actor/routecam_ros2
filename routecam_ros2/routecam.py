@@ -15,6 +15,7 @@ from cv_bridge import CvBridge, CvBridgeError
 
 FRAME_WIDTH = 1280
 FRAME_HEIGHT = 720
+DESC_FRAME_ID = "route_cam_link"
 STREAM_INITIAL_TIMEOUT = 10         # time to wait before determining the stream cannot be found
 
 
@@ -56,7 +57,7 @@ class Routecam(Node):
         self.info.height = FRAME_HEIGHT
         self.info.binning_x = 0
         self.info.binning_y = 0
-        self.info.header.frame_id = "route_cam_link" 
+        self.info.header.frame_id = DESC_FRAME_ID
         self.info.distortion_model = "rational_polynomial"
         self.info.d = [0.006529257187577666, -0.13277793184289408, 0.1680380154205031, -0.0775994795123907]
         self.info.k = [594.619643383718, -2.338996198816343, 680.1318100627273, 0.0, 593.0999623886435, 371.09535258839816, 0.0, 0.0, 1.0]
@@ -96,7 +97,9 @@ class Routecam(Node):
         
         
         # convert cv frame to ros image
-        self.image_pub.publish(self.bridge.cv2_to_imgmsg(frame, "bgr8"))
+        image_msg = self.bridge.cv2_to_imgmsg(frame, "bgr8")
+        image_msg.header.frame_id = DESC_FRAME_ID
+        self.image_pub.publish(image_msg)
         self.info_pub.publish(self.info)
         buf.unmap(map_info)
         return 0
